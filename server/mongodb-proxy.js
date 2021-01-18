@@ -1,12 +1,12 @@
-var express = require('express');
-var bodyParser = require('body-parser');
-var _ = require('lodash');
-var app = express();
+const express = require('express');
+const bodyParser = require('body-parser');
+const _ = require('lodash');
+const app = express();
 const MongoClient = require('mongodb').MongoClient;
 const assert = require('assert');
-var config = require('config');
-var Stopwatch = require("statman-stopwatch");
-var moment = require('moment')
+const config = require('config');
+const Stopwatch = require("statman-stopwatch");
+const moment = require('moment')
 
 app.use(bodyParser.json());
 
@@ -80,36 +80,32 @@ function queryError(requestId, err, next)
 function queryFinished(requestId, queryId, results, res, next)
 {
   // We only 1 return error per query so it may have been removed from the list
-  if ( requestId in requestsPending )
-  {
+  let output;
+  if (requestId in requestsPending) {
+    let i;
     var queryStatus = requestsPending[requestId]
     // Mark this as finished
     queryStatus[queryId].pending = false
     queryStatus[queryId].results = results
 
     // See if we're all done
-    var done = true
-    for ( var i = 0; i < queryStatus.length; i++)
-    {
-      if (queryStatus[i].pending == true )
-      {
+    let done = true;
+    for (i = 0; i < queryStatus.length; i++) {
+      if (queryStatus[i].pending == true) {
         done = false
         break
       }
     }
-  
+
     // If query done, send back results
-    if (done)
-    {
+    if (done) {
       // Concatenate results
-      output = []    
-      for ( var i = 0; i < queryStatus.length; i++)
-      {
-        var queryResults = queryStatus[i].results
-        var keys = Object.keys(queryResults)
-        for (var k = 0; k < keys.length; k++)
-        {
-          var tg = keys[k]
+      output = []
+      for (i = 0; i < queryStatus.length; i++) {
+        let queryResults = queryStatus[i].results
+        let keys = Object.keys(queryResults)
+        for (let k = 0; k < keys.length; k++) {
+          let tg = keys[k]
           output.push(queryResults[tg])
         }
       }
@@ -128,19 +124,20 @@ app.all('/query', function(req, res, next)
     setCORSHeaders(res);
 
     // Parse query string in target
-    substitutions = { "$from" : new Date(req.body.range.from),
-                      "$to" : new Date(req.body.range.to),
-                      "$dateBucketCount" : getBucketCount(req.body.range.from, req.body.range.to, req.body.intervalMs)
-                     }
+  let substitutions = {
+    "$from": new Date(req.body.range.from),
+    "$to": new Date(req.body.range.to),
+    "$dateBucketCount": getBucketCount(req.body.range.from, req.body.range.to, req.body.intervalMs)
+  }
 
     // Generate an id to track requests
     const requestId = ++requestIdCounter                 
     // Add state for the queries in this request
-    var queryStates = []
+    let queryStates = []
     requestsPending[requestId] = queryStates
-    var error = false
+    let error = false
 
-    for ( var queryId = 0; queryId < req.body.targets.length && !error; queryId++)
+    for (let queryId = 0; queryId < req.body.targets.length && !error; queryId++)
     {
       tg = req.body.targets[queryId]
       queryArgs = parseQuery(tg.target, substitutions)
@@ -199,27 +196,32 @@ function forIn(obj, processFunc)
 
 function parseQuery(query, substitutions)
 {
-  doc = {}
-  queryErrors = []
+  let doc = {}
+  let queryErrors = []
+  let queryIndex = 3
 
   query = query.trim() 
-  if (query.substring(0,3) != "db.")
+  if (query.substring(0,queryIndex) !== "db.")
   {
-    queryErrors.push("Query must start with db.")
-    return null
+    queryIndex = query.indexOf('.') + 1;
+    doc.dbName = query.substring(0,query.indexOf('.'))
+    // queryErrors.push("Query must start with db.")
+    // return null
+  } else {
+    doc.dbName = null
   }
 
   // Query is of the form db.<collection>.aggregate or db.<collection>.find
   // Split on the first ( after db.
   var openBracketIndex = query.indexOf('(', 3)
-  if (openBracketIndex == -1)
+  if (openBracketIndex === -1)
   {
     queryErrors.push("Can't find opening bracket")
   }
   else
   {
     // Split the first bit - it's the collection name and operation ( must be aggregate )
-    var parts = query.substring(3, openBracketIndex).split('.')
+    var parts = query.substring(queryIndex, openBracketIndex).split('.')
     // Collection names can have .s so last part is operation, rest is the collection name
     if (parts.length >= 2)
     {
@@ -290,13 +292,20 @@ function runAggregateQuery( requestId, queryId, body, queryArgs, res, next )
 {
   MongoClient.connect(body.db.url, function(err, client) 
   {
+    let db;
     if ( err != null )
     {
       queryError(requestId, err, next)
     }
     else
     {
-      const db = client.db(body.db.db);
+      if ( queryArgs.dbName === null )
+      {
+        db = client.db(body.db.db);
+      } else {
+        db = client.db(queryArgs.dbName)
+      }
+
   
       // Get the documents collection
       const collection = db.collection(queryArgs.collection);
@@ -424,7 +433,7 @@ function doTemplateQuery(requestId, queryArgs, db, res, next)
  if ( queryArgs.err == null)
   {
     // Database Name
-    const dbName = db.db
+    const dbName = "access" //db.db
     
     // Use connect method to connect to the server
     MongoClient.connect(db.url, function(err, client) 
@@ -508,8 +517,7 @@ function intervalCount(range, intervalString, intervalMs)
   var rangeSeconds = range.asSeconds()
   var intervalsInRange = rangeSeconds / (intervalMs / 1000)
 
-  var output = intervalsInRange.toFixed(0) + ' ' + intervalString + ' intervals'
-  return output
+  return intervalsInRange.toFixed(0) + ' ' + intervalString + ' intervals'
 }
 
 function getBucketCount(from, to, intervalMs)
