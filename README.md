@@ -25,7 +25,10 @@ Allows MongoDB to be used as a data source for Grafana by providing a proxy to c
 
 Create a new data source of type MongoDB as shown below. The MongoDB details are :
 
-* **MongoDB URL** - `mongodb://rpiread:rpiread@rpi-sensor-data-shard-00-00-ifxxs.mongodb.net:27017,rpi-sensor-data-shard-00-01-ifxxs.mongodb.net:27017,rpi-sensor-data-shard-00-02-ifxxs.mongodb.net:27017/test?ssl=true&replicaSet=rpi-sensor-data-shard-0&authSource=admin`
+### Add Http Header:
+- **mongodb_url** : `mongodb://rpiread:rpiread@rpi-sensor-data-shard-00-00-ifxxs.mongodb.net:27017,rpi-sensor-data-shard-00-01-ifxxs.mongodb.net:27017,rpi-sensor-data-shard-00-02-ifxxs.mongodb.net:27017/test?ssl=true&replicaSet=rpi-sensor-data-shard-0&authSource=admin`
+
+### Optional Parameters:
 * **MongoDB Database** - `rpi`
 
 <img src="src/img/sample_datasource.png" alt="Sample Data Source" style="width: 500px;"/>

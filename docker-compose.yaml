@@ -1,0 +1,14 @@
+version: '3.5'
+services:
+  grafana:
+    image: grafana/grafana:7.3.6
+    container_name: mongodb-grafana
+    ports:
+      - 9875:3000
+    volumes:
+      - ./dist/:/var/lib/grafana/plugins/
+      - ./debugging/grafana.ini:/usr/share/grafana/conf/defaults.ini
+      - ./examples/dashboards/:/var/lib/grafana/dashboards/
+      - ./examples/provisioning/:/etc/grafana/provisioning
+
+

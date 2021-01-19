@@ -16,12 +16,6 @@ module.exports = function(grunt) {
         src: ['**/*', '!**/*.js', '!**/*.scss'],
         dest: 'dist'
       },
-      server_to_dist: {
-        cwd: 'server',
-        expand: true,
-        src: ['**/*'],
-        dest: 'dist/server'
-      },
       pluginDef: {
         expand: true,
         src: ['README.md'],
@@ -84,5 +78,5 @@ module.exports = function(grunt) {
     }
   });
 
-  grunt.registerTask('default', ['clean', 'copy:src_to_dist', 'copy:server_to_dist', 'copy:pluginDef', 'babel', 'mochaTest']);
+  grunt.registerTask('default', ['clean', 'copy:src_to_dist', 'copy:pluginDef', 'babel']);
 };

@@ -6,7 +6,7 @@ export class GenericDatasource {
     this.type = instanceSettings.type;
     this.url = instanceSettings.url;
     this.name = instanceSettings.name;
-    this.db = { 'url' : instanceSettings.jsonData.mongodb_url, 'db' : instanceSettings.jsonData.mongodb_db }
+    this.db = {  'db' : instanceSettings.jsonData.mongodb_db }
     this.q = $q;
     this.backendSrv = backendSrv;
     this.templateSrv = templateSrv;
@@ -18,7 +18,7 @@ export class GenericDatasource {
   }
 
   query(options) {
-    var query = this.buildQueryParameters(options);
+    let query = this.buildQueryParameters(options);
     query.targets = query.targets.filter(t => !t.hide);
     query.db = this.db
 
@@ -34,6 +34,8 @@ export class GenericDatasource {
   }
 
   testDatasource() {
+    console.log('this is the url: ' + this.url)
+    console.log()
     return this.doRequest({
       url: this.url + '/',
       data : { db : this.db },

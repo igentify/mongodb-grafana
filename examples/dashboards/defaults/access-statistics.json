@@ -1,0 +1,335 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "gnetId": null,
+  "graphTooltip": 0,
+  "id": 1,
+  "iteration": 1610981294475,
+  "links": [],
+  "panels": [
+    {
+      "datasource": "$datasource",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": null,
+            "filterable": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Org ID"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 60
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "id": 4,
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": false,
+            "displayName": "Organizarion"
+          }
+        ]
+      },
+      "pluginVersion": "7.3.6",
+      "targets": [
+        {
+          "rawQuery": true,
+          "refId": "A",
+          "target": "db.access-sessions.aggregate([\n{\n        \"$group\": {\n            \"_id\": \"$organizationId\",\n            \"org\": {\"$max\": \"$payload.organization.name\"},\n            \"totalAccessSessions\": { \"$sum\":\n                    {\n                        \"$switch\": {\n                            \"branches\": [\n                                { \"case\":  {\"$eq\": [ \"$payload.appConfig\", \"accessConfig\" ] }, \"then\": 1 }\n                            ],\n                            \"default\": 0\n                        }\n                    }\n            },\n            \"totalResultsSessions\": { \"$sum\":\n                    {\n                        \"$switch\": {\n                            \"branches\": [\n                                { \"case\":  {\"$eq\": [ \"$payload.appConfig\", \"resultsConfig\" ] }, \"then\": 1 }\n                            ],\n                            \"default\": 0\n                        }\n                    }\n            }\n        }\n    },\n    {\"$addFields\": { \"orgID\": \"$_id\" }},\n    {\"$project\": { \"_id\": 0 }}\n])",
+          "type": "table"
+        }
+      ],
+      "timeFrom": null,
+      "timeShift": null,
+      "title": "Panel Title",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "orgID": true
+            },
+            "indexByName": {
+              "org": 1,
+              "orgID": 0,
+              "totalAccessSessions": 2,
+              "totalResultsSessions": 3
+            },
+            "renameByName": {
+              "org": "Organizarion",
+              "orgID": "Org ID",
+              "totalAccessSessions": "Total Access Sessions",
+              "totalResultsSessions": "Total Results Sessions"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": "$datasource",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": null,
+            "filterable": true
+          },
+          "links": [
+            {
+              "targetBlank": false,
+              "title": "test",
+              "url": "http://localhost:8888/d/bjWjUdfGk/access-statistics?orgId=1&var-orgsId=${__data.fields[\"orgsId\"]}&var-datasource=${datasource}"
+            }
+          ],
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Organization ID"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": null
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": false,
+            "displayName": "Organization ID"
+          }
+        ]
+      },
+      "pluginVersion": "7.3.6",
+      "targets": [
+        {
+          "rawQuery": true,
+          "refId": "A",
+          "target": "db.access-sessions.aggregate([\n    {\n        \"$match\": {\n            \"payload.appConfig\": \"accessConfig\"\n        }\n    },\n    {\n        \"$group\": {\n            \"_id\":\n                {\n                    \"fullPath\": { \"$ifNull\": [ \"$payload.progressPage.fullPath\", \"N/A\" ] },\n                    \"org\": \"$payload.organization.name\",\n                    \"orgsId\":\"$organizationId\"\n                },\n            \"count\": {\"$sum\": 1}\n        }\n    },\n    {\n        \"$group\":\n            {\n                \"_id\":{\n                     \"org\":\"$_id.org\",\n                     \"orgsId\": \"$_id.orgsId\"},\n                \"pages\":\n                    {\n                        \"$push\":\n                            {\n                                \"page\":\"$_id.fullPath\",\n                                \"count\":\"$count\"\n                            }\n                    },\n                \"totalAccessSessions\":{\"$sum\":\"$count\"}\n            }\n    },\n    {\"$addFields\": { \"orgID\": \"$_id.org\" ,\"orgsId\":\"$_id.orgsId\"}},\n    {\"$project\": { \"_id\": 0 }}\n] )",
+          "type": "table"
+        }
+      ],
+      "timeFrom": null,
+      "timeShift": null,
+      "title": "Panel Title",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "orgsId": false
+            },
+            "indexByName": {
+              "orgID": 0,
+              "pages": 1,
+              "totalAccessSessions": 2
+            },
+            "renameByName": {
+              "orgID": "Organization ID",
+              "pages": "Pages",
+              "totalAccessSessions": "Total Access Sessions"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": "$datasource",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "center",
+            "filterable": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 9
+      },
+      "id": 6,
+      "options": {
+        "showHeader": true
+      },
+      "pluginVersion": "7.3.6",
+      "targets": [
+        {
+          "rawQuery": true,
+          "refId": "A",
+          "target": "db.access-sessions.aggregate([\n    {\n        \"$match\": {\n            \"payload.appConfig\": \"accessConfig\",\n            \"organizationId\": \"${orgsId}\"\n        }\n    },\n    {\n        \"$group\": {\n            \"_id\":\n                {\n                    \"fullPath\": { \"$ifNull\": [ \"$payload.progressPage.fullPath\", \"N/A\" ] },\n                    \"org\": \"$payload.organization.name\",\n                    \"orgsId\":\"$organizationId\"\n                },\n            \"count\": {\"$sum\": 1}\n        }\n    },\n\n\n    {\"$addFields\": { \"orgID\": \"$_id.fullPath\", \"orgsid\":\"$_id.orgsId\" ,\"name\":\"$_id.org\"}},\n    {\"$project\": { \"_id\": 0 }}\n] )",
+          "type": "table"
+        }
+      ],
+      "timeFrom": null,
+      "timeShift": null,
+      "title": "Panel Title",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "orgsid": true
+            },
+            "indexByName": {
+              "count": 1,
+              "name": 3,
+              "orgID": 0,
+              "orgsid": 2
+            },
+            "renameByName": {
+              "count": "Count",
+              "orgID": "Organization",
+              "pages": ""
+            }
+          }
+        }
+      ],
+      "type": "table"
+    }
+  ],
+  "schemaVersion": 26,
+  "style": "dark",
+  "tags": [],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": false,
+          "text": "3",
+          "value": "3"
+        },
+        "error": null,
+        "hide": 2,
+        "label": null,
+        "name": "orgsId",
+        "options": [
+          {
+            "selected": false,
+            "text": "3",
+            "value": "3"
+          }
+        ],
+        "query": "13",
+        "skipUrlSync": false,
+        "type": "textbox"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "Test MongoDB Access",
+          "value": "Test MongoDB Access"
+        },
+        "error": null,
+        "hide": 0,
+        "includeAll": false,
+        "label": null,
+        "multi": false,
+        "name": "datasource",
+        "options": [],
+        "query": "grafana-mongodb-datasource",
+        "queryValue": "",
+        "refresh": 1,
+        "regex": "/.*Access.*/",
+        "skipUrlSync": false,
+        "type": "datasource"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-1y",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Access Statistics",
+  "uid": "bjWjUdfGk",
+  "version": 30
+}

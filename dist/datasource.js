@@ -74,6 +74,8 @@ System.register(['lodash'], function (_export, _context) {
         }, {
           key: 'testDatasource',
           value: function testDatasource() {
+            console.log('this is the url: ' + this.url);
+            console.log();
             return this.doRequest({
               url: this.url + '/',
               data: { db: this.db },
