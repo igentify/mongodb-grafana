@@ -1,5 +1,5 @@
 {
-  "name": "MongoDB",
+  "name": "OSS-MongoDB",
   "id": "grafana-mongodb-datasource",
   "type": "datasource",
 
@@ -39,10 +39,6 @@
         {
           "name": "Content-Type",
           "content": "application/json"
-        },
-        {
-          "name": "mongodb_url",
-          "content": "{{.SecureJsonData.mongodb_url}}"
         },
         {
           "name": "mongodb_db",
