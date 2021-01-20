@@ -1,5 +1,5 @@
 {
-  "name": "MongoDB",
+  "name": "OSS-MongoDB",
   "id": "grafana-mongodb-datasource",
   "type": "datasource",
 
@@ -30,5 +30,21 @@
   "dependencies": {
     "grafanaVersion": "3.x.x",
     "plugins": [ ]
-  }
+  },
+  "routes": [
+    {
+      "path": "flux",
+      "url": "{{.JsonData.url}}",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "content": "application/json"
+        },
+        {
+          "name": "mongodb_db",
+          "content": "{{.SecureJsonData.mongodb_db}}"
+        }
+      ]
+    }
+  ]
 }

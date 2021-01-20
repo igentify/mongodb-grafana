@@ -1,0 +1,10 @@
+.idea
+.vscode
+coverage
+debugging
+dist
+examples
+node_modules
+spec
+src
+*.md

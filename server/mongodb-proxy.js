@@ -1,12 +1,12 @@
-var express = require('express');
-var bodyParser = require('body-parser');
-var _ = require('lodash');
-var app = express();
+const express = require('express');
+const bodyParser = require('body-parser');
+const _ = require('lodash');
+const app = express();
 const MongoClient = require('mongodb').MongoClient;
 const assert = require('assert');
-var config = require('config');
-var Stopwatch = require("statman-stopwatch");
-var moment = require('moment')
+const config = require('config');
+const Stopwatch = require("statman-stopwatch");
+const moment = require('moment')
 
 app.use(bodyParser.json());
 
@@ -16,7 +16,7 @@ app.all('/', function(req, res, next)
   logRequest(req.body, "/")
   setCORSHeaders(res);
 
-  MongoClient.connect(req.body.db.url, function(err, client)
+  MongoClient.connect(req.header("mongodb_url"), function(err, client)
   {
     if ( err != null )
     {
@@ -40,20 +40,25 @@ app.all('/search', function(req, res, next)
   logRequest(req.body, "/search")
   setCORSHeaders(res);
 
+  let db = {
+    url: req.header("mongodb_url"),
+    db: req.body.db.dbName
+  }
+
   // Generate an id to track requests
   const requestId = ++requestIdCounter                 
   // Add state for the queries in this request
-  var queryStates = []
+  let queryStates = []
   requestsPending[requestId] = queryStates
   // Parse query string in target
-  queryArgs = parseQuery(req.body.target, {})
+  let queryArgs = parseQuery(req.body.target, {})
   if (queryArgs.err != null)
   {
     queryError(requestId, queryArgs.err, next)
   }
   else
   {
-    doTemplateQuery(requestId, queryArgs, req.body.db, res, next);
+    doTemplateQuery(requestId, queryArgs, db, res, next);
   }
 });
 
@@ -80,36 +85,32 @@ function queryError(requestId, err, next)
 function queryFinished(requestId, queryId, results, res, next)
 {
   // We only 1 return error per query so it may have been removed from the list
-  if ( requestId in requestsPending )
-  {
+  let output;
+  if (requestId in requestsPending) {
+    let i;
     var queryStatus = requestsPending[requestId]
     // Mark this as finished
     queryStatus[queryId].pending = false
     queryStatus[queryId].results = results
 
     // See if we're all done
-    var done = true
-    for ( var i = 0; i < queryStatus.length; i++)
-    {
-      if (queryStatus[i].pending == true )
-      {
+    let done = true;
+    for (i = 0; i < queryStatus.length; i++) {
+      if (queryStatus[i].pending == true) {
         done = false
         break
       }
     }
-  
+
     // If query done, send back results
-    if (done)
-    {
+    if (done) {
       // Concatenate results
-      output = []    
-      for ( var i = 0; i < queryStatus.length; i++)
-      {
-        var queryResults = queryStatus[i].results
-        var keys = Object.keys(queryResults)
-        for (var k = 0; k < keys.length; k++)
-        {
-          var tg = keys[k]
+      output = []
+      for (i = 0; i < queryStatus.length; i++) {
+        let queryResults = queryStatus[i].results
+        let keys = Object.keys(queryResults)
+        for (let k = 0; k < keys.length; k++) {
+          let tg = keys[k]
           output.push(queryResults[tg])
         }
       }
@@ -126,21 +127,26 @@ app.all('/query', function(req, res, next)
 {
     logRequest(req.body, "/query")
     setCORSHeaders(res);
+  let db = {
+    url: req.header("mongodb_url"),
+    db: req.body.db.dbName
+  }
 
     // Parse query string in target
-    substitutions = { "$from" : new Date(req.body.range.from),
-                      "$to" : new Date(req.body.range.to),
-                      "$dateBucketCount" : getBucketCount(req.body.range.from, req.body.range.to, req.body.intervalMs)
-                     }
+  let substitutions = {
+    "$from": new Date(req.body.range.from),
+    "$to": new Date(req.body.range.to),
+    "$dateBucketCount": getBucketCount(req.body.range.from, req.body.range.to, req.body.intervalMs)
+  }
 
     // Generate an id to track requests
     const requestId = ++requestIdCounter                 
     // Add state for the queries in this request
-    var queryStates = []
+    let queryStates = []
     requestsPending[requestId] = queryStates
-    var error = false
+    let error = false
 
-    for ( var queryId = 0; queryId < req.body.targets.length && !error; queryId++)
+    for (let queryId = 0; queryId < req.body.targets.length && !error; queryId++)
     {
       tg = req.body.targets[queryId]
       queryArgs = parseQuery(tg.target, substitutions)
@@ -156,7 +162,7 @@ app.all('/query', function(req, res, next)
         queryStates.push( { pending : true } )
 
         // Run the query
-        runAggregateQuery( requestId, queryId, req.body, queryArgs, res, next)
+        runAggregateQuery( requestId, queryId, req.body, db, queryArgs, res, next)
       }
     }
   }
@@ -170,7 +176,7 @@ app.use(function(error, req, res, next)
 });
 
 // Get config from server/default.json
-var serverConfig = config.get('server');
+const serverConfig = config.get('server');
 
 app.listen(serverConfig.port);
 
@@ -185,41 +191,45 @@ function setCORSHeaders(res)
 
 function forIn(obj, processFunc)
 {
-    var key;
+  let key;
     for (key in obj) 
     {
-        var value = obj[key]
+      let value = obj[key]
         processFunc(obj, key, value)
-        if ( value != null && typeof(value) == "object")
-        {
-            forIn(value, processFunc)
+        if ( value != null && typeof(value) == "object") {
+          forIn(value, processFunc)
         }
     }
 }
 
 function parseQuery(query, substitutions)
 {
-  doc = {}
-  queryErrors = []
+  let doc = {}
+  let queryErrors = []
+  let queryIndex = 3
 
   query = query.trim() 
-  if (query.substring(0,3) != "db.")
+  if (query.substring(0,queryIndex) !== "db.")
   {
-    queryErrors.push("Query must start with db.")
-    return null
+    queryIndex = query.indexOf('.') + 1;
+    doc.dbName = query.substring(0,query.indexOf('.'))
+    // queryErrors.push("Query must start with db.")
+    // return null
+  } else {
+    doc.dbName = null
   }
 
   // Query is of the form db.<collection>.aggregate or db.<collection>.find
   // Split on the first ( after db.
-  var openBracketIndex = query.indexOf('(', 3)
-  if (openBracketIndex == -1)
+  let openBracketIndex = query.indexOf('(', 3)
+  if (openBracketIndex === -1)
   {
     queryErrors.push("Can't find opening bracket")
   }
   else
   {
     // Split the first bit - it's the collection name and operation ( must be aggregate )
-    var parts = query.substring(3, openBracketIndex).split('.')
+    let parts = query.substring(queryIndex, openBracketIndex).split('.')
     // Collection names can have .s so last part is operation, rest is the collection name
     if (parts.length >= 2)
     {
@@ -232,14 +242,14 @@ function parseQuery(query, substitutions)
     }
   
     // Args is the rest up to the last bracket
-    var closeBracketIndex = query.indexOf(')', openBracketIndex)
+    let closeBracketIndex = query.indexOf(')', openBracketIndex)
     if (closeBracketIndex == -1)
     {
       queryErrors.push("Can't find last bracket")
     }
     else
     {
-      var args = query.substring(openBracketIndex + 1, closeBracketIndex)
+      let args = query.substring(openBracketIndex + 1, closeBracketIndex)
       if ( doc.operation == 'aggregate')
       {
         // Wrap args in array syntax so we can check for optional options arg
@@ -253,9 +263,9 @@ function parseQuery(query, substitutions)
           doc.agg_options = docs[1]
         }
         // Replace with substitutions
-        for ( var i = 0; i < doc.pipeline.length; i++)
+        for ( let i = 0; i < doc.pipeline.length; i++)
         {
-            var stage = doc.pipeline[i]
+          let stage = doc.pipeline[i]
             forIn(stage, function (obj, key, value)
                 {
                     if ( typeof(value) == "string" )
@@ -286,22 +296,29 @@ function parseQuery(query, substitutions)
 // Run an aggregate query. Must return documents of the form
 // { value : 0.34334, ts : <epoch time in seconds> }
 
-function runAggregateQuery( requestId, queryId, body, queryArgs, res, next )
+function runAggregateQuery( requestId, queryId, body, db, queryArgs, res, next )
 {
-  MongoClient.connect(body.db.url, function(err, client) 
+  MongoClient.connect(db.url, function(err, client)
   {
+    let db;
     if ( err != null )
     {
       queryError(requestId, err, next)
     }
     else
     {
-      const db = client.db(body.db.db);
+      if ( queryArgs.dbName === null )
+      {
+        db = client.db(body.db.db);
+      } else {
+        db = client.db(queryArgs.dbName)
+      }
+
   
       // Get the documents collection
       const collection = db.collection(queryArgs.collection);
       logQuery(queryArgs.pipeline, queryArgs.agg_options)
-      var stopwatch = new Stopwatch(true)
+      let stopwatch = new Stopwatch(true)
 
       collection.aggregate(queryArgs.pipeline, queryArgs.agg_options).toArray(function(err, docs) 
         {
@@ -314,7 +331,7 @@ function runAggregateQuery( requestId, queryId, body, queryArgs, res, next )
           {
             try
             {
-              var results = {}
+              let results = {}
               if ( queryArgs.type == 'timeserie' )
               {
                 results = getTimeseriesResults(docs)
@@ -325,7 +342,7 @@ function runAggregateQuery( requestId, queryId, body, queryArgs, res, next )
               }
       
               client.close();
-              var elapsedTimeMs = stopwatch.stop()
+              let elapsedTimeMs = stopwatch.stop()
               logTiming(body, elapsedTimeMs)
               // Mark query as finished - will send back results when all queries finished
               queryFinished(requestId, queryId, results, res, next)
@@ -342,14 +359,14 @@ function runAggregateQuery( requestId, queryId, body, queryArgs, res, next )
 
 function getTableResults(docs)
 {
-  var columns = {}
+  let columns = {}
   
   // Build superset of columns
-  for ( var i = 0; i < docs.length; i++)
+  for ( let i = 0; i < docs.length; i++)
   {
-    var doc = docs[i]
+    let doc = docs[i]
     // Go through all properties
-    for (var propName in doc )
+    for (let propName in doc )
     {
       // See if we need to add a new column
       if ( !(propName in columns) )
@@ -364,15 +381,15 @@ function getTableResults(docs)
   }
   
   // Build return rows
-  rows = []
-  for ( var i = 0; i < docs.length; i++)
+  let rows = []
+  for ( let i = 0; i < docs.length; i++)
   {
-    var doc = docs[i]
-    row = []
+    let doc = docs[i]
+    let row = []
     // All cols
-    for ( var colName in columns )
+    for ( let colName in columns )
     {
-      var col = columns[colName]
+      let col = columns[colName]
       if ( col.text in doc )
       {
         row.push(doc[col.text])
@@ -385,7 +402,7 @@ function getTableResults(docs)
     rows.push(row)
   }
   
-  var results = {}
+  let results = {}
   results["table"] = {
     columns :  Object.values(columns),
     rows : rows,
@@ -396,12 +413,12 @@ function getTableResults(docs)
 
 function getTimeseriesResults(docs)
 {
-  var results = {}
-  for ( var i = 0; i < docs.length; i++)
+  let results = {}
+  for ( let i = 0; i < docs.length; i++)
   {
-    var doc = docs[i]
-    var tg = doc.name
-    var dp = null
+    let doc = docs[i]
+    let tg = doc.name
+    let dp = null
     if (tg in results)
     {
       dp = results[tg]
@@ -424,7 +441,7 @@ function doTemplateQuery(requestId, queryArgs, db, res, next)
  if ( queryArgs.err == null)
   {
     // Database Name
-    const dbName = db.db
+    const dbName = "access" //db.db
     
     // Use connect method to connect to the server
     MongoClient.connect(db.url, function(err, client) 
@@ -448,10 +465,10 @@ function doTemplateQuery(requestId, queryArgs, db, res, next)
           {
             assert.equal(err, null)
     
-            output = []
-            for ( var i = 0; i < result.length; i++)
+            let output = []
+            for ( let i = 0; i < result.length; i++)
             {
-              var doc = result[i]
+              let doc = result[i]
               output.push(doc["_id"])
             }
             res.json(output);
@@ -493,8 +510,8 @@ function logTiming(body, elapsedTimeMs)
 {
   if (serverConfig.logTimings)
   {
-    var range = new Date(body.range.to) - new Date(body.range.from)
-    var diff = moment.duration(range)
+    const range = new Date(body.range.to) - new Date(body.range.from)
+    const diff = moment.duration(range)
     
     console.log("Request: " + intervalCount(diff, body.interval, body.intervalMs) + " - Returned in " + elapsedTimeMs.toFixed(2) + "ms")
   }
@@ -505,19 +522,18 @@ function logTiming(body, elapsedTimeMs)
 function intervalCount(range, intervalString, intervalMs) 
 {
   // Convert everything to seconds
-  var rangeSeconds = range.asSeconds()
-  var intervalsInRange = rangeSeconds / (intervalMs / 1000)
+  const rangeSeconds = range.asSeconds()
+  const intervalsInRange = rangeSeconds / (intervalMs / 1000)
 
-  var output = intervalsInRange.toFixed(0) + ' ' + intervalString + ' intervals'
-  return output
+  return intervalsInRange.toFixed(0) + ' ' + intervalString + ' intervals'
 }
 
 function getBucketCount(from, to, intervalMs)
 {
-  var boundaries = []
-  var current = new Date(from).getTime()
-  var toMs = new Date(to).getTime()
-  var count = 0
+  let boundaries = []
+  let current = new Date(from).getTime()
+  let toMs = new Date(to).getTime()
+  let count = 0
   while ( current < toMs )
   {
     current += intervalMs

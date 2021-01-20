@@ -3,6 +3,11 @@
 ## Features
 Allows MongoDB to be used as a data source for Grafana by providing a proxy to convert the Grafana Data source [API](http://docs.grafana.org/plugins/developing/datasources/) into MongoDB aggregation queries
 
+## Current Version
+
+* **0.0.1**
+
+
 ## Requirements
 
 * **Grafana** > 3.x.x
@@ -25,7 +30,10 @@ Allows MongoDB to be used as a data source for Grafana by providing a proxy to c
 
 Create a new data source of type MongoDB as shown below. The MongoDB details are :
 
-* **MongoDB URL** - `mongodb://rpiread:rpiread@rpi-sensor-data-shard-00-00-ifxxs.mongodb.net:27017,rpi-sensor-data-shard-00-01-ifxxs.mongodb.net:27017,rpi-sensor-data-shard-00-02-ifxxs.mongodb.net:27017/test?ssl=true&replicaSet=rpi-sensor-data-shard-0&authSource=admin`
+### Add Http Header:
+- **mongodb_url** : `mongodb://rpiread:rpiread@rpi-sensor-data-shard-00-00-ifxxs.mongodb.net:27017,rpi-sensor-data-shard-00-01-ifxxs.mongodb.net:27017,rpi-sensor-data-shard-00-02-ifxxs.mongodb.net:27017/test?ssl=true&replicaSet=rpi-sensor-data-shard-0&authSource=admin`
+
+### Optional Parameters:
 * **MongoDB Database** - `rpi`
 
 <img src="src/img/sample_datasource.png" alt="Sample Data Source" style="width: 500px;"/>
@@ -111,22 +119,27 @@ The dashboard in `examples\Sensor Values Count - Atlas.json` shows this.
 
 This launch ctrl plist runs the node script via forever. To check it's running, use `forever list`. Logs go into /usr/local/var/lib/grafana/plugins/mongodb-grafana/dist/server
 
-## Development
 
-To run grafana against a dev version of the plugin on a mac using grafana installed via Homebrew
- 
-* Stop the grafana service `brew services stop grafana`
-* Open a command prompt in /debugging
-* Run ./start_grafana.sh
-* Alter code
-* npm run build to build the UI
-* Developer tools -> empty cache and hard reload
+## Packing the plugin
 
-Note
+1. Run
+    ```shell
+    npm run build
+    ```
+1. Create a ZIP archive of the dist directory. 
+    ```shell
+    mv dist/ grafana-mongodb-datasource
+    zip grafana-mongodb-datasource-<version>.zip grafana-mongodb-datasource -r
+    ```
+1. Upload to artifactory
 
-* Homebrew grafana versions in /usr/local/Cellar
+## Pacing the proxy server
 
-
+Build and Push the image
+```shell
+docker build -t docker-internal.artifactory.igentify.net/grafana-mongodb-datasource:<version> -f Docker/Dockerfile .
+docker push docker-internal.artifactory.igentify.net/grafana-mongodb-datasource:<version>
+```
 
 
 
