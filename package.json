@@ -7,7 +7,7 @@
   "scripts": {
     "build": "./node_modules/grunt-cli/bin/grunt",
     "test": "./node_modules/grunt-cli/bin/grunt mochaTest",
-    "server": "cd dist/server && node mongodb-proxy.js"
+    "server": "cd server && API_TOKEN=12345 nodemon mongodb-proxy.js"
   },
   "repository": {
     "type": "git",
@@ -40,6 +40,7 @@
     "grunt-systemjs-builder": "^1.0.0",
     "jsdom": "~9.12.0",
     "load-grunt-tasks": "^3.5.2",
+    "nodemon": "^2.0.7",
     "prunk": "^1.3.0",
     "q": "^1.5.0"
   },
@@ -47,6 +48,7 @@
     "body-parser": "^1.18.3",
     "config": "^1.30.0",
     "express": "^4.16.3",
+    "express-rate-limit": "^5.2.3",
     "fs": "0.0.1-security",
     "lodash": "^4.17.10",
     "mocha": "^8.2.1",

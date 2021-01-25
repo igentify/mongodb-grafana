@@ -5,43 +5,64 @@ const app = express();
 const MongoClient = require('mongodb').MongoClient;
 const assert = require('assert');
 const config = require('config');
+const logs = require('./logs.js');
 const Stopwatch = require("statman-stopwatch");
-const moment = require('moment')
+const auth = require('./auth');
+const rateLimit = require("express-rate-limit");
 
 app.use(bodyParser.json());
+// Get config from server/default.json
+const serverConfig = config.get('server');
+const rateLimitWindowMinutes = process.env.RATE_LIMIT_MINUTES || 1
+const rateLimitMax = process.env.RATE_LIMIT_MINUTES || 10
+const baseUrl = process.env.BASE_URL || "mongo-grafana-service"
+const limiter = rateLimit({
+  windowMs: rateLimitWindowMinutes * 60 * 1000, // 1 minutes
+  max: rateLimitMax // limit each IP to 100 requests per windowMs
+});
+app.use(limiter);
 
-// Called by test
-app.all('/', function(req, res, next) 
+app.listen(serverConfig.port);
+
+console.log("Server is listening on port " + serverConfig.port);
+const mongodb_url = process.env.MONGODB_URL || null;
+
+// Called by health check logic
+app.get(`/internal.api/v1/${baseUrl}/settings/health`, function (req,res){
+  res.sendStatus(200);
+})
+
+app.all(`/api/v1/${baseUrl}/`, auth, function(req, res, next)
 {
-  logRequest(req.body, "/")
+  logs.logRequest(req.body, "/")
   setCORSHeaders(res);
 
-  MongoClient.connect(req.header("mongodb_url"), function(err, client)
+  MongoClient.connect(getMongoURL(req), function(err, client)
   {
     if ( err != null )
     {
-      res.send({ status : "error", 
-                 display_status : "Error", 
-                 message : 'MongoDB Connection Error: ' + err.message });
+      res.send({ status : "error",
+        display_status : "Error",
+        message : 'MongoDB Connection Error: ' + err.message });
     }
     else
     {
-      res.send( { status : "success", 
-                  display_status : "Success", 
-                  message : 'MongoDB Connection test OK' });
+      res.send( { status : "success",
+        display_status : "Success",
+        message : 'MongoDB Connection test OK' });
     }
     next()
   })
 });
 
 // Called by template functions and to look up variables
-app.all('/search', function(req, res, next)
+app.all(`/api/v1/${baseUrl}/search`, auth, function(req, res, next)
 {
-  logRequest(req.body, "/search")
+  logs.logRequest(req.body, "/search")
   setCORSHeaders(res);
 
   let db = {
-    url: req.header("mongodb_url"),
+    url: getMongoURL(req),
     db: req.body.db.dbName
   }
 
@@ -62,11 +83,72 @@ app.all('/search', function(req, res, next)
   }
 });
 
+// Called to get graph points
+app.all(`/api/v1/${baseUrl}/query`, auth, function(req, res, next)
+    {
+      logs.logRequest(req.body, "/query")
+      setCORSHeaders(res);
+      let db = {
+        url: getMongoURL(req),
+        db: req.body.db.dbName
+      }
+
+      // Parse query string in target
+      let substitutions = {
+        "$from": new Date(req.body.range.from),
+        "$to": new Date(req.body.range.to),
+        "$dateBucketCount": getBucketCount(req.body.range.from, req.body.range.to, req.body.intervalMs)
+      }
+
+      // Generate an id to track requests
+      const requestId = ++requestIdCounter
+      // Add state for the queries in this request
+      let queryStates = []
+      requestsPending[requestId] = queryStates
+      let error = false
+
+      for (let queryId = 0; queryId < req.body.targets.length && !error; queryId++)
+      {
+        tg = req.body.targets[queryId]
+        queryArgs = parseQuery(tg.target, substitutions)
+        queryArgs.type = tg.type
+        if (queryArgs.err != null)
+        {
+          queryError(requestId, queryArgs.err, next)
+          error = true
+        }
+        else
+        {
+          // Add to the state
+          queryStates.push( { pending : true } )
+
+          // Run the query
+          runAggregateQuery( requestId, queryId, req.body, db, queryArgs, res, next)
+        }
+      }
+    }
+);
+
+app.use(auth, function(error, req, res, next)
+{
+  // Any request to this server will get here, and will send an HTTP
+  // response with the error message
+  res.status(500).json({ message: error.message });
+});
+
 // State for queries in flight. As results come it, acts as a semaphore and sends the results back
 var requestIdCounter = 0
 // Map of request id -> array of results. Results is
 // { query, err, output }
 var requestsPending = {}
+
+// Get MongoDB connection
+function getMongoURL(req){
+  if (mongodb_url === null)
+    return  req.header("mongodb_url")
+  else
+    return mongodb_url;
+}
 
 // Called when a query finishes with an error
 function queryError(requestId, err, next)
@@ -122,65 +204,8 @@ function queryFinished(requestId, queryId, results, res, next)
   }
 }
 
-// Called to get graph points
-app.all('/query', function(req, res, next)
-{
-    logRequest(req.body, "/query")
-    setCORSHeaders(res);
-  let db = {
-    url: req.header("mongodb_url"),
-    db: req.body.db.dbName
-  }
 
-    // Parse query string in target
-  let substitutions = {
-    "$from": new Date(req.body.range.from),
-    "$to": new Date(req.body.range.to),
-    "$dateBucketCount": getBucketCount(req.body.range.from, req.body.range.to, req.body.intervalMs)
-  }
 
-    // Generate an id to track requests
-    const requestId = ++requestIdCounter                 
-    // Add state for the queries in this request
-    let queryStates = []
-    requestsPending[requestId] = queryStates
-    let error = false
-
-    for (let queryId = 0; queryId < req.body.targets.length && !error; queryId++)
-    {
-      tg = req.body.targets[queryId]
-      queryArgs = parseQuery(tg.target, substitutions)
-      queryArgs.type = tg.type
-      if (queryArgs.err != null)
-      {
-        queryError(requestId, queryArgs.err, next)
-        error = true
-      }
-      else
-      {
-        // Add to the state
-        queryStates.push( { pending : true } )
-
-        // Run the query
-        runAggregateQuery( requestId, queryId, req.body, db, queryArgs, res, next)
-      }
-    }
-  }
-);
-
-app.use(function(error, req, res, next) 
-{
-  // Any request to this server will get here, and will send an HTTP
-  // response with the error message
-  res.status(500).json({ message: error.message });
-});
-
-// Get config from server/default.json
-const serverConfig = config.get('server');
-
-app.listen(serverConfig.port);
-
-console.log("Server is listening on port " + serverConfig.port);
 
 function setCORSHeaders(res) 
 {
@@ -317,7 +342,7 @@ function runAggregateQuery( requestId, queryId, body, db, queryArgs, res, next )
   
       // Get the documents collection
       const collection = db.collection(queryArgs.collection);
-      logQuery(queryArgs.pipeline, queryArgs.agg_options)
+      logs.logQuery(queryArgs.pipeline, queryArgs.agg_options)
       let stopwatch = new Stopwatch(true)
 
       collection.aggregate(queryArgs.pipeline, queryArgs.agg_options).toArray(function(err, docs) 
@@ -343,7 +368,7 @@ function runAggregateQuery( requestId, queryId, body, db, queryArgs, res, next )
       
               client.close();
               let elapsedTimeMs = stopwatch.stop()
-              logTiming(body, elapsedTimeMs)
+              logs.logTiming(body, elapsedTimeMs)
               // Mark query as finished - will send back results when all queries finished
               queryFinished(requestId, queryId, results, res, next)
             }
@@ -441,7 +466,7 @@ function doTemplateQuery(requestId, queryArgs, db, res, next)
  if ( queryArgs.err == null)
   {
     // Database Name
-    const dbName = "access" //db.db
+    const dbName = db.db
     
     // Use connect method to connect to the server
     MongoClient.connect(db.url, function(err, client) 
@@ -484,42 +509,10 @@ function doTemplateQuery(requestId, queryArgs, db, res, next)
   }
 }
 
-function logRequest(body, type)
-{
-  if (serverConfig.logRequests)
-  {
-    console.log("REQUEST: " + type + ":\n" + JSON.stringify(body,null,2))
-  }
-}
-
-function logQuery(query, options)
-{
-  if (serverConfig.logQueries)
-  {
-    console.log("Query:")
-    console.log(JSON.stringify(query,null,2))
-    if ( options != null )
-    {
-      console.log("Query Options:")
-      console.log(JSON.stringify(options,null,2))
-    }
-  }
-}
-
-function logTiming(body, elapsedTimeMs)
-{
-  if (serverConfig.logTimings)
-  {
-    const range = new Date(body.range.to) - new Date(body.range.from)
-    const diff = moment.duration(range)
-    
-    console.log("Request: " + intervalCount(diff, body.interval, body.intervalMs) + " - Returned in " + elapsedTimeMs.toFixed(2) + "ms")
-  }
-}
 
 // Take a range as a moment.duration and a grafana interval like 30s, 1m etc
 // And return the number of intervals that represents
-function intervalCount(range, intervalString, intervalMs) 
+function intervalCount(range, intervalString, intervalMs)
 {
   // Convert everything to seconds
   const rangeSeconds = range.asSeconds()

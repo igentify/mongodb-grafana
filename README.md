@@ -143,7 +143,8 @@ docker push docker-internal.artifactory.igentify.net/grafana-mongodb-datasource:
 
 
 
+## Deploying the Proxy Service
 
+Parameters:
 
-
-
+- API_TOKEN - token to access the service using the x-api-key header
