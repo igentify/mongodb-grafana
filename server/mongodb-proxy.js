@@ -63,7 +63,7 @@ app.all(`/api/v1/${baseUrl}/search`, auth, function(req, res, next)
 
   let db = {
     url: getMongoURL(req),
-    db: req.body.db.dbName
+    db: req.body.db.db
   }
 
   // Generate an id to track requests
@@ -90,7 +90,7 @@ app.all(`/api/v1/${baseUrl}/query`, auth, function(req, res, next)
       setCORSHeaders(res);
       let db = {
         url: getMongoURL(req),
-        db: req.body.db.dbName
+        db: req.body.db.db
       }
 
       // Parse query string in target
@@ -453,8 +453,11 @@ function getTimeseriesResults(docs)
       dp = { 'target' : tg, 'datapoints' : [] }
       results[tg] = dp
     }
-    
-    results[tg].datapoints.push([doc['value'], doc['ts'].getTime()])
+    if (typeof(doc['ts']) === "number"){
+      results[tg].datapoints.push([doc['value'], doc['ts']])
+    } else {
+      results[tg].datapoints.push([doc['value'], doc['ts'].getTime()])
+    }
   }
   return results
 }
