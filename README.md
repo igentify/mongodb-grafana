@@ -5,7 +5,8 @@ Allows MongoDB to be used as a data source for Grafana by providing a proxy to c
 
 ## Current Version
 
-* **0.0.1**
+* Grafana plugin - **0.0.1**
+* Server version - **0.0.5**
 
 
 ## Requirements

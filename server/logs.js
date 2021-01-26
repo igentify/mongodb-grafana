@@ -1,12 +1,13 @@
 const config = require('config');
 const moment = require('moment')
 const serverConfig = config.get('server');
+const logger = require('./logger.js')
 
 function logRequest(body, type)
 {
     if (serverConfig.logRequests)
     {
-        console.log("REQUEST: " + type + ":\n" + JSON.stringify(body,null,2))
+        logger.debug("REQUEST: " + type + ":\n" + JSON.stringify(body,null,2))
     }
 }
 
@@ -14,12 +15,12 @@ function logQuery(query, options)
 {
     if (serverConfig.logQueries)
     {
-        console.log("Query:")
-        console.log(JSON.stringify(query,null,2))
+        logger.debug("Query:")
+        logger.debug(JSON.stringify(query,null,2))
         if ( options != null )
         {
-            console.log("Query Options:")
-            console.log(JSON.stringify(options,null,2))
+            logger.debug("Query Options:")
+            logger.debug(JSON.stringify(options,null,2))
         }
     }
 }
@@ -31,7 +32,7 @@ function logTiming(body, elapsedTimeMs)
         const range = new Date(body.range.to) - new Date(body.range.from)
         const diff = moment.duration(range)
 
-        console.log("Request: " + intervalCount(diff, body.interval, body.intervalMs) + " - Returned in " + elapsedTimeMs.toFixed(2) + "ms")
+        logger.debug("Request: " + intervalCount(diff, body.interval, body.intervalMs) + " - Returned in " + elapsedTimeMs.toFixed(2) + "ms")
     }
 }
 

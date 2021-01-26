@@ -9,6 +9,7 @@ const logs = require('./logs.js');
 const Stopwatch = require("statman-stopwatch");
 const auth = require('./auth');
 const rateLimit = require("express-rate-limit");
+const logger = require('./logger.js')
 
 app.use(bodyParser.json());
 // Get config from server/default.json
@@ -24,11 +25,12 @@ app.use(limiter);
 
 app.listen(serverConfig.port);
 
-console.log("Server is listening on port " + serverConfig.port);
+logger.info("Server is listening on port " + serverConfig.port);
 const mongodb_url = process.env.MONGODB_URL || null;
 
 // Called by health check logic
 app.get(`/internal.api/v1/${baseUrl}/settings/health`, function (req,res){
+  logger.verbose('Health check pass')
   res.sendStatus(200);
 })
 
@@ -109,8 +111,8 @@ app.all(`/api/v1/${baseUrl}/query`, auth, function(req, res, next)
 
       for (let queryId = 0; queryId < req.body.targets.length && !error; queryId++)
       {
-        tg = req.body.targets[queryId]
-        queryArgs = parseQuery(tg.target, substitutions)
+        let tg = req.body.targets[queryId]
+        let queryArgs = parseQuery(tg.target, substitutions)
         queryArgs.type = tg.type
         if (queryArgs.err != null)
         {
@@ -454,8 +456,10 @@ function getTimeseriesResults(docs)
       results[tg] = dp
     }
     if (typeof(doc['ts']) === "number"){
+      logger.debug("Calculating timestamp on ts field base on a number");
       results[tg].datapoints.push([doc['value'], doc['ts']])
     } else {
+      logger.debug("Calculating timestamp on ts field base date object");
       results[tg].datapoints.push([doc['value'], doc['ts'].getTime()])
     }
   }
@@ -510,18 +514,6 @@ function doTemplateQuery(requestId, queryArgs, db, res, next)
   {
     next(queryArgs.err)
   }
-}
-
-
-// Take a range as a moment.duration and a grafana interval like 30s, 1m etc
-// And return the number of intervals that represents
-function intervalCount(range, intervalString, intervalMs)
-{
-  // Convert everything to seconds
-  const rangeSeconds = range.asSeconds()
-  const intervalsInRange = rangeSeconds / (intervalMs / 1000)
-
-  return intervalsInRange.toFixed(0) + ' ' + intervalString + ' intervals'
 }
 
 function getBucketCount(from, to, intervalMs)

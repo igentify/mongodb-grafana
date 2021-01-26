@@ -54,7 +54,8 @@
     "mocha": "^8.2.1",
     "moment": "^2.22.1",
     "mongodb": "^3.0.8",
-    "statman-stopwatch": "^2.7.0"
+    "statman-stopwatch": "^2.7.0",
+    "winston": "^3.3.3"
   },
   "homepage": "https://github.com/JamesOsgood/mongodb-grafana#readme"
 }

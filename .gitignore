@@ -3,3 +3,6 @@ node_modules/
 .idea
 coverage
 tmp
+dist
+*.zip
+*.log
